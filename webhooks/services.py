@@ -77,22 +77,48 @@ def claim_due_deliveries(*, limit: int = 100) -> list[WebhookDelivery]:
 
 def deliver_once(delivery: WebhookDelivery) -> None:
     """Send one signed event. URL validation is repeated to mitigate DNS rebinding."""
-    validate_webhook_url(delivery.endpoint.url)
-    payload = delivery_payload(delivery)
-    timestamp = int(timezone.now().timestamp())
-    signature = sign_payload(payload=payload, secret=decrypt_secret(delivery.endpoint.encrypted_secret), timestamp=timestamp)
-    request = Request(delivery.endpoint.url, data=payload, method="POST", headers={
-        "Content-Type": "application/json",
-        "User-Agent": "PesoWay-Webhook/1.0",
-        "X-PesoWay-Event": str(delivery.event.public_id),
-        "X-PesoWay-Timestamp": str(timestamp),
-        "X-PesoWay-Signature": f"v1={signature}",
-    })
     try:
+        validate_webhook_url(delivery.endpoint.url)
+        payload = delivery_payload(delivery)
+        timestamp = int(timezone.now().timestamp())
+        signature = sign_payload(payload=payload, secret=decrypt_secret(delivery.endpoint.encrypted_secret), timestamp=timestamp)
+        request = Request(delivery.endpoint.url, data=payload, method="POST", headers={
+            "Content-Type": "application/json",
+            "User-Agent": "PesoWay-Webhook/1.0",
+            "X-PesoWay-Event": str(delivery.event.public_id),
+            "X-PesoWay-Timestamp": str(timestamp),
+            "X-PesoWay-Signature": f"v1={signature}",
+        })
         with build_opener(_NoRedirect()).open(request, timeout=DELIVERY_TIMEOUT_SECONDS) as response:
             status_code = response.status
         mark_delivery_result(delivery=delivery, succeeded=200 <= status_code < 300, status_code=status_code, error="" if 200 <= status_code < 300 else "Non-success response.")
     except HTTPError as error:
         mark_delivery_result(delivery=delivery, succeeded=False, status_code=error.code, error="Non-success response.")
-    except (URLError, OSError, ValueError):
+    except Exception:
+        # Outbound failures are recorded without exposing endpoint details or
+        # secrets. The stored retry policy remains the single source of truth.
         mark_delivery_result(delivery=delivery, succeeded=False, error="Delivery failed.")
+
+
+def process_due_deliveries(*, limit: int = 100) -> dict[str, int]:
+    """Claim and process a bounded due batch for either cron or the CLI.
+
+    Claiming is transactional and successful rows are no longer eligible, so
+    repeated or overlapping scheduler invocations cannot resend successes.
+    """
+    deliveries = claim_due_deliveries(limit=max(1, min(limit, 1000)))
+    succeeded = 0
+    failed = 0
+    for delivery in deliveries:
+        try:
+            deliver_once(delivery)
+        except Exception:
+            # A defensive boundary for unexpected code errors. Do not let one
+            # delivery prevent later due records from being processed.
+            mark_delivery_result(delivery=delivery, succeeded=False, error="Delivery failed.")
+        delivery.refresh_from_db(fields=["status"])
+        if delivery.status == WebhookDelivery.Status.SUCCEEDED:
+            succeeded += 1
+        else:
+            failed += 1
+    return {"processed": len(deliveries), "succeeded": succeeded, "failed": failed}

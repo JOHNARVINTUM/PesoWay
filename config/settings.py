@@ -145,3 +145,10 @@ WEBHOOK_ENCRYPTION_KEY = os.getenv("WEBHOOK_ENCRYPTION_KEY")
 if not WEBHOOK_ENCRYPTION_KEY:
     raise ImproperlyConfigured("WEBHOOK_ENCRYPTION_KEY must be set.")
 
+# Vercel Cron supplies this value as a Bearer token when invoking configured
+# cron routes. It is deliberately optional only for local debug/test use; an
+# internal production task must fail closed if it was not configured.
+CRON_SECRET = os.getenv("CRON_SECRET", "")
+if not DEBUG and not CRON_SECRET:
+    raise ImproperlyConfigured("CRON_SECRET must be set when DEBUG is disabled.")
+

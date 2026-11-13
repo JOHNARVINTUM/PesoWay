@@ -1,4 +1,6 @@
-from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
+from django.utils.crypto import constant_time_compare
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import OpenApiTypes, extend_schema
@@ -8,6 +10,23 @@ from security.services import audit, enforce_rate_limit
 from .models import WebhookEndpoint
 from .models import WebhookEvent
 from .serializers import WebhookEndpointCreateSerializer
+from .services import process_due_deliveries
+
+
+class WebhookDeliveryCronView(APIView):
+    """Private Vercel Cron entry point for the transactional webhook outbox."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        authorization = request.headers.get("Authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        expected = settings.CRON_SECRET
+        if not expected or scheme.lower() != "bearer" or not token or not constant_time_compare(token, expected):
+            # Keep the same uninformative body for absent and invalid tokens.
+            return Response({"error": {"code": "authentication_failed", "message": "Request could not be completed."}}, status=401)
+        return Response({"data": process_due_deliveries(limit=100)})
 
 
 class WebhookEndpointListCreateView(APIView):

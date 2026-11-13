@@ -4,5 +4,11 @@
     "**/*.py": {
       "includeFiles": "templates/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/internal/cron/deliver-webhooks/",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }
