@@ -28,7 +28,7 @@ Responses use `{ "data": ... }`; errors use `{ "error": { "code", "message", "de
 
 The controlled simulator creates attempts at `POST /api/v1/payment-intents/{id}/attempts/` (`payments:write`) and completes them at `POST /api/v1/simulator/payment-attempts/{reference}/complete/` (`simulator:write`). It accepts only the named test scenarios `succeeded`, `failed`, and `canceled`, is always labeled as simulation, and never accepts arbitrary payment status input.
 
-In local debug mode, PesoWay also provides its own hosted simulation checkout at `/checkout/{payment-intent-id}/`. It presents simulated Card, GCash, Maya, and QR Ph choices, creates a normal PesoWay attempt, and completes a server-controlled test payment. It never collects real card, wallet, PIN, or OTP data and returns 404 when debug mode is disabled.
+PesoWay provides its own hosted simulation checkout at `/checkout/{payment-intent-id}/` when `PESOWAY_SIMULATOR_ENABLED=true`. It presents simulated Card, GCash, Maya, and QR Ph choices, then displays a separate test-authorization page before a server-controlled outcome. It never collects real card, wallet, PIN, or OTP data. The simulator is enabled by default only in local debug mode; a deployed test environment must opt in explicitly while keeping `DJANGO_DEBUG=false`.
 
 Set `return_url` when creating an intent to return a customer to the merchant application after checkout. PesoWay appends `payment_intent=<uuid>` and `status=succeeded`; local HTTP URLs are permitted only in debug mode, while deployed flows require HTTPS.
 
@@ -53,6 +53,8 @@ Webhook endpoints are registered at `POST /api/v1/webhook-endpoints/` with `webh
 Use `python manage.py deliver_webhooks` from a local scheduler to process the PostgreSQL-backed outbox. Each POST carries `X-PesoWay-Event`, `X-PesoWay-Timestamp`, and `X-PesoWay-Signature: v1=<HMAC-SHA256>`; the signature covers `<timestamp>.<raw body>`. Receivers should validate the timestamp, signature, and event ID idempotently. Delivery attempts use exponential backoff and stop after five failures. Endpoints must be public HTTPS hosts; private, loopback, link-local, and redirect targets are rejected.
 
 For Vercel deployments, `GET /internal/cron/deliver-webhooks/` invokes the same outbox service through a protected Cron route. It requires `CRON_SECRET` and is configured as a daily job for Vercel Hobby compatibility. See [`docs/vercel-webhook-delivery.md`](docs/vercel-webhook-delivery.md) for required environment variables, safe testing, and the important Hobby scheduling limitation.
+
+After a successful controlled simulation, PesoWay also makes one bounded, best-effort delivery attempt for the new success event after its database transaction commits. This lets a normal single-endpoint integration update promptly; the outbox and protected Cron route remain the durable retry fallback if the receiver is unavailable.
 
 ## Phase 4 financial operations
 

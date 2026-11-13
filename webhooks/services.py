@@ -57,7 +57,7 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def claim_due_deliveries(*, limit: int = 100, merchant=None) -> list[WebhookDelivery]:
+def claim_due_deliveries(*, limit: int = 100, merchant=None, event=None) -> list[WebhookDelivery]:
     """Claim work by moving its schedule forward before making any network call."""
     now = timezone.now()
     with transaction.atomic():
@@ -66,6 +66,8 @@ def claim_due_deliveries(*, limit: int = 100, merchant=None) -> list[WebhookDeli
         ).order_by("id")
         if merchant is not None:
             queryset = queryset.filter(endpoint__merchant=merchant)
+        if event is not None:
+            queryset = queryset.filter(event=event)
         if transaction.get_connection().features.has_select_for_update_skip_locked:
             queryset = queryset.select_for_update(skip_locked=True)
         else:
@@ -102,13 +104,13 @@ def deliver_once(delivery: WebhookDelivery) -> None:
         mark_delivery_result(delivery=delivery, succeeded=False, error="Delivery failed.")
 
 
-def process_due_deliveries(*, limit: int = 100, merchant=None) -> dict[str, int]:
+def process_due_deliveries(*, limit: int = 100, merchant=None, event=None) -> dict[str, int]:
     """Claim and process a bounded due batch for either cron or the CLI.
 
     Claiming is transactional and successful rows are no longer eligible, so
     repeated or overlapping scheduler invocations cannot resend successes.
     """
-    deliveries = claim_due_deliveries(limit=max(1, min(limit, 1000)), merchant=merchant)
+    deliveries = claim_due_deliveries(limit=max(1, min(limit, 1000)), merchant=merchant, event=event)
     succeeded = 0
     failed = 0
     for delivery in deliveries:
