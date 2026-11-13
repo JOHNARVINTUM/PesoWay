@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from payments.views import PaymentIntentDetailView, PaymentIntentListCreateView, PaymentIntentCancelView
-from webhooks.views import WebhookEndpointListCreateView, WebhookEventListView
+from webhooks.views import WebhookDeliveryCronView, WebhookEndpointListCreateView, WebhookEventListView
 from transactions.views import RefundCreateView, TransactionListView
 from dashboard.views import merchant_dashboard, test_console
 from simulator.views import SimulatedAttemptCompleteView, SimulatedAttemptCreateView
@@ -26,6 +26,7 @@ urlpatterns = [
     path("api/v1/payment-intents/<uuid:public_id>/cancel/", PaymentIntentCancelView.as_view(), name="payment-intent-cancel"),
     path("api/v1/webhook-endpoints/", WebhookEndpointListCreateView.as_view(), name="webhook-endpoint-list"),
     path("api/v1/webhook-events/", WebhookEventListView.as_view(), name="webhook-event-list"),
+    path("internal/cron/deliver-webhooks/", WebhookDeliveryCronView.as_view(), name="webhook-delivery-cron"),
     path("api/v1/transactions/", TransactionListView.as_view(), name="transaction-list"),
     path("api/v1/refunds/", RefundCreateView.as_view(), name="refund-create"),
     path("api/v1/payment-intents/<uuid:public_id>/attempts/", SimulatedAttemptCreateView.as_view(), name="simulated-attempt-create"),

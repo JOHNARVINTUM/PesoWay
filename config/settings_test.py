@@ -3,6 +3,7 @@ import os
 
 os.environ.setdefault("DJANGO_SECRET_KEY", "test-only-secret-key-that-is-long-enough-for-django-checks")
 os.environ.setdefault("WEBHOOK_ENCRYPTION_KEY", "h8UrfM50iqNhwI6d5Tq2aX72OdCwERXHr6tkQ0oRiY8=")
+os.environ.setdefault("CRON_SECRET", "test-cron-secret")
 
 from .settings import *  # noqa: F403
 

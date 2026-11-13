@@ -52,6 +52,8 @@ Webhook endpoints are registered at `POST /api/v1/webhook-endpoints/` with `webh
 
 Use `python manage.py deliver_webhooks` from a local scheduler to process the PostgreSQL-backed outbox. Each POST carries `X-PesoWay-Event`, `X-PesoWay-Timestamp`, and `X-PesoWay-Signature: v1=<HMAC-SHA256>`; the signature covers `<timestamp>.<raw body>`. Receivers should validate the timestamp, signature, and event ID idempotently. Delivery attempts use exponential backoff and stop after five failures. Endpoints must be public HTTPS hosts; private, loopback, link-local, and redirect targets are rejected.
 
+For Vercel deployments, `GET /internal/cron/deliver-webhooks/` invokes the same outbox service through a protected Cron route. It requires `CRON_SECRET` and is configured as a daily job for Vercel Hobby compatibility. See [`docs/vercel-webhook-delivery.md`](docs/vercel-webhook-delivery.md) for required environment variables, safe testing, and the important Hobby scheduling limitation.
+
 ## Phase 4 financial operations
 
 `GET /api/v1/transactions/` returns merchant-scoped append-only ledger entries with `transactions:read`. `POST /api/v1/refunds/` requires `refunds:write` and creates a simulated refund only for a succeeded intent; it locks the intent, prevents over-refunds, and records a negative immutable ledger entry. The session-protected merchant monitoring view is available at `/dashboard/`.
