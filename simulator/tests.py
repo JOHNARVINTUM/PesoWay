@@ -28,6 +28,7 @@ class SimulatorFlowTests(TestCase):
         self.assertEqual(process_due.call_count, 1)
         self.assertEqual(process_due.call_args.kwargs["limit"], 1)
         self.assertEqual(process_due.call_args.kwargs["event"].event_type, "payment_intent.succeeded")
+        self.assertTrue(process_due.call_args.kwargs["newest_endpoint_first"])
 
     def test_failed_simulation_leaves_intent_retryable(self):
         attempt = self.client.post(f"/api/v1/payment-intents/{self.intent_id}/attempts/", {"method": "card"}, format="json", HTTP_AUTHORIZATION=f"Bearer {self.key}")

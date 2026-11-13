@@ -14,7 +14,7 @@ def _deliver_new_event_after_commit(*, merchant, event) -> None:
     try:
         # Bound checkout latency. Remaining endpoints and failures stay in the
         # outbox and are picked up by the protected scheduled worker.
-        process_due_deliveries(limit=1, merchant=merchant, event=event)
+        process_due_deliveries(limit=1, merchant=merchant, event=event, newest_endpoint_first=True)
     except Exception:
         # The committed financial state must not be reported as failed merely
         # because an external receiver is temporarily unavailable.
