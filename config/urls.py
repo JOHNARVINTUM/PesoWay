@@ -4,11 +4,11 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from payments.views import PaymentIntentDetailView, PaymentIntentListCreateView, PaymentIntentCancelView
 from webhooks.views import WebhookDeliveryCronView, WebhookEndpointListCreateView, WebhookEventListView
 from transactions.views import RefundCreateView, TransactionListView
-from dashboard.views import merchant_dashboard, test_console
+from dashboard.views import deliver_due_webhooks, merchant_dashboard, test_console
 from simulator.views import SimulatedAttemptCompleteView, SimulatedAttemptCreateView
 from accounts.views import LoginView, LogoutView
 from merchants.views import APIKeyCreateView, APIKeyRevokeView
-from simulator.checkout_views import hosted_checkout
+from simulator.checkout_views import hosted_checkout, simulated_payment_authorize
 from dashboard.public_views import developer_docs, home
 
 urlpatterns = [
@@ -32,7 +32,9 @@ urlpatterns = [
     path("api/v1/payment-intents/<uuid:public_id>/attempts/", SimulatedAttemptCreateView.as_view(), name="simulated-attempt-create"),
     path("api/v1/simulator/payment-attempts/<uuid:reference>/complete/", SimulatedAttemptCompleteView.as_view(), name="simulated-attempt-complete"),
     path("checkout/<uuid:public_id>/", hosted_checkout, name="hosted-checkout"),
+    path("checkout/attempts/<uuid:reference>/authorize/", simulated_payment_authorize, name="simulated-payment-authorize"),
     path("dashboard/", merchant_dashboard, name="merchant-dashboard"),
+    path("dashboard/webhooks/deliver/", deliver_due_webhooks, name="merchant-webhook-delivery"),
     path("dashboard/test-console/", test_console, name="test-console"),
 ]
 

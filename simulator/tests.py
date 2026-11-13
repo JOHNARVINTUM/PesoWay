@@ -30,11 +30,17 @@ class SimulatorFlowTests(TestCase):
         self.assertEqual(completed.data["data"]["payment_intent_status"], "requires_payment_method")
 
     @override_settings(DEBUG=True)
-    def test_local_hosted_checkout_completes_a_simulation(self):
+    def test_local_hosted_checkout_requires_test_authorization_before_completion(self):
         intent = PaymentIntent.objects.get(public_id=self.intent_id)
         page = self.client.get(f"/checkout/{intent.public_id}/")
         self.assertEqual(page.status_code, 200)
-        paid = self.client.post(f"/checkout/{intent.public_id}/", {"method": "maya"})
+        selected = self.client.post(f"/checkout/{intent.public_id}/", {"method": "maya"})
+        self.assertEqual(selected.status_code, 302)
+        intent.refresh_from_db()
+        self.assertNotEqual(intent.status, PaymentIntent.Status.SUCCEEDED)
+        authorization = self.client.get(selected["Location"])
+        self.assertContains(authorization, "Authorize test payment")
+        paid = self.client.post(selected["Location"], {"decision": "authorize"})
         self.assertEqual(paid.status_code, 200)
         intent.refresh_from_db()
         self.assertEqual(intent.status, PaymentIntent.Status.SUCCEEDED)
@@ -45,7 +51,8 @@ class SimulatorFlowTests(TestCase):
         intent = PaymentIntent.objects.get(public_id=self.intent_id)
         intent.return_url = "http://localhost:3000/checkout/complete?source=pesoway"
         intent.save(update_fields=["return_url"])
-        response = self.client.post(f"/checkout/{intent.public_id}/", {"method": "gcash"})
+        selected = self.client.post(f"/checkout/{intent.public_id}/", {"method": "gcash"})
+        response = self.client.post(selected["Location"], {"decision": "authorize"})
         self.assertEqual(response.status_code, 302)
         self.assertIn(f"payment_intent={intent.public_id}", response["Location"])
         self.assertIn("status=succeeded", response["Location"])
