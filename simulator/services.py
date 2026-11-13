@@ -6,7 +6,19 @@ from payments.models import PaymentAttempt, PaymentIntent
 from payments.services import transition_intent
 from security.services import audit
 from transactions.services import record_entry
-from webhooks.services import create_event
+from webhooks.services import create_event, process_due_deliveries
+
+
+def _deliver_new_event_after_commit(*, merchant, event) -> None:
+    """Best-effort immediate delivery; the durable scheduler remains fallback."""
+    try:
+        # Bound checkout latency. Remaining endpoints and failures stay in the
+        # outbox and are picked up by the protected scheduled worker.
+        process_due_deliveries(limit=1, merchant=merchant, event=event)
+    except Exception:
+        # The committed financial state must not be reported as failed merely
+        # because an external receiver is temporarily unavailable.
+        return
 
 
 def create_simulated_attempt(*, intent: PaymentIntent, method: str, api_key, request_id: str = "") -> PaymentAttempt:
@@ -39,7 +51,10 @@ def complete_simulated_attempt(*, attempt: PaymentAttempt, scenario: str, api_ke
             attempt.status = scenario
             if scenario == PaymentAttempt.Status.SUCCEEDED:
                 transition_intent(intent, PaymentIntent.Status.SUCCEEDED)
-                create_event(merchant=intent.merchant, event_type="payment_intent.succeeded", data={"payment_intent": str(intent.public_id), "status": intent.status})
+                event = create_event(merchant=intent.merchant, event_type="payment_intent.succeeded", data={"payment_intent": str(intent.public_id), "status": intent.status})
+                transaction.on_commit(
+                    lambda merchant=intent.merchant, event=event: _deliver_new_event_after_commit(merchant=merchant, event=event)
+                )
                 record_entry(merchant=intent.merchant, payment_intent=intent, entry_type="payment_succeeded", amount_centavos=intent.amount_centavos, reference=f"pi-success-{intent.public_id}")
             else:
                 transition_intent(intent, PaymentIntent.Status.REQUIRES_PAYMENT_METHOD)

@@ -17,6 +17,7 @@ code.
 - `WEBHOOK_ENCRYPTION_KEY`
 - `CRON_SECRET` (a random, header-safe value of at least 16 characters)
 - `DJANGO_DEBUG=false`
+- `PESOWAY_SIMULATOR_ENABLED=true` (only for this test-only gateway deployment)
 - `DJANGO_ALLOWED_HOSTS` (include the deployed PesoWay host)
 - `DJANGO_SECURE_SSL_REDIRECT=true`
 

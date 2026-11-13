@@ -28,6 +28,9 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
+# The hosted checkout is a controlled simulation, not a Django debug feature.
+# It is enabled locally by default but production requires explicit opt-in.
+PESOWAY_SIMULATOR_ENABLED = env_bool("PESOWAY_SIMULATOR_ENABLED", DEBUG)
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set.")

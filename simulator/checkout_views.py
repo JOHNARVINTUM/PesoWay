@@ -26,7 +26,7 @@ def safe_return_url(url: str, intent: PaymentIntent) -> str | None:
 @require_http_methods(["GET", "POST"])
 def hosted_checkout(request, public_id):
     """Local-only hosted checkout simulation; no card or wallet data is collected."""
-    if not settings.DEBUG:
+    if not settings.PESOWAY_SIMULATOR_ENABLED:
         raise Http404
     intent = get_object_or_404(PaymentIntent, public_id=public_id)
     context = {"intent": intent, "amount_pesos": Decimal(intent.amount_centavos) / Decimal(100)}
@@ -47,7 +47,7 @@ def hosted_checkout(request, public_id):
 @require_http_methods(["GET", "POST"])
 def simulated_payment_authorize(request, reference):
     """A controlled test-provider approval page; it never collects payment credentials."""
-    if not settings.DEBUG:
+    if not settings.PESOWAY_SIMULATOR_ENABLED:
         raise Http404
     attempt = get_object_or_404(PaymentAttempt.objects.select_related("intent"), reference=reference)
     intent = attempt.intent
