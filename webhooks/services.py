@@ -57,17 +57,18 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def claim_due_deliveries(*, limit: int = 100, merchant=None, event=None) -> list[WebhookDelivery]:
+def claim_due_deliveries(*, limit: int = 100, merchant=None, event=None, newest_endpoint_first: bool = False) -> list[WebhookDelivery]:
     """Claim work by moving its schedule forward before making any network call."""
     now = timezone.now()
     with transaction.atomic():
         queryset = WebhookDelivery.objects.select_related("endpoint", "event").filter(
             status=WebhookDelivery.Status.PENDING, next_attempt_at__lte=now
-        ).order_by("id")
+        )
         if merchant is not None:
             queryset = queryset.filter(endpoint__merchant=merchant)
         if event is not None:
             queryset = queryset.filter(event=event)
+        queryset = queryset.order_by("-endpoint__created_at", "id") if newest_endpoint_first else queryset.order_by("id")
         if transaction.get_connection().features.has_select_for_update_skip_locked:
             queryset = queryset.select_for_update(skip_locked=True)
         else:
@@ -104,13 +105,16 @@ def deliver_once(delivery: WebhookDelivery) -> None:
         mark_delivery_result(delivery=delivery, succeeded=False, error="Delivery failed.")
 
 
-def process_due_deliveries(*, limit: int = 100, merchant=None, event=None) -> dict[str, int]:
+def process_due_deliveries(*, limit: int = 100, merchant=None, event=None, newest_endpoint_first: bool = False) -> dict[str, int]:
     """Claim and process a bounded due batch for either cron or the CLI.
 
     Claiming is transactional and successful rows are no longer eligible, so
     repeated or overlapping scheduler invocations cannot resend successes.
     """
-    deliveries = claim_due_deliveries(limit=max(1, min(limit, 1000)), merchant=merchant, event=event)
+    deliveries = claim_due_deliveries(
+        limit=max(1, min(limit, 1000)), merchant=merchant, event=event,
+        newest_endpoint_first=newest_endpoint_first,
+    )
     succeeded = 0
     failed = 0
     for delivery in deliveries:

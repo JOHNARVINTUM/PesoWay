@@ -54,7 +54,7 @@ Use `python manage.py deliver_webhooks` from a local scheduler to process the Po
 
 For Vercel deployments, `GET /internal/cron/deliver-webhooks/` invokes the same outbox service through a protected Cron route. It requires `CRON_SECRET` and is configured as a daily job for Vercel Hobby compatibility. See [`docs/vercel-webhook-delivery.md`](docs/vercel-webhook-delivery.md) for required environment variables, safe testing, and the important Hobby scheduling limitation.
 
-After a successful controlled simulation, PesoWay also makes one bounded, best-effort delivery attempt for the new success event after its database transaction commits. This lets a normal single-endpoint integration update promptly; the outbox and protected Cron route remain the durable retry fallback if the receiver is unavailable.
+After a successful controlled simulation, PesoWay also makes one bounded, best-effort delivery attempt for the new success event after its database transaction commits. It prioritizes the most recently registered active endpoint, which supports a merchant changing from a temporary test receiver to its deployed receiver. The outbox and protected Cron route remain the durable retry fallback if the receiver is unavailable; deactivate obsolete endpoints after migration to prevent duplicate deliveries.
 
 ## Phase 4 financial operations
 
