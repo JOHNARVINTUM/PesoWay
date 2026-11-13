@@ -37,12 +37,39 @@ def hosted_checkout(request, public_id):
             return render(request, "simulator/checkout.html", context, status=400)
         try:
             attempt = create_simulated_attempt(intent=intent, method=method, api_key=None)
-            complete_simulated_attempt(attempt=attempt, scenario="succeeded", api_key=None)
         except ValidationError as error:
             context["error"] = " ".join(str(value) for value in error.detail.values())
             return render(request, "simulator/checkout.html", context, status=400)
+        return redirect("simulated-payment-authorize", reference=attempt.reference)
+    return render(request, "simulator/checkout.html", context)
+
+
+@require_http_methods(["GET", "POST"])
+def simulated_payment_authorize(request, reference):
+    """A controlled test-provider approval page; it never collects payment credentials."""
+    if not settings.DEBUG:
+        raise Http404
+    attempt = get_object_or_404(PaymentAttempt.objects.select_related("intent"), reference=reference)
+    intent = attempt.intent
+    context = {
+        "attempt": attempt,
+        "intent": intent,
+        "amount_pesos": Decimal(intent.amount_centavos) / Decimal(100),
+    }
+    if request.method == "POST":
+        decision = request.POST.get("decision", "")
+        if decision not in {"authorize", "cancel"}:
+            context["error"] = "Choose whether to authorize or cancel this simulated payment."
+            return render(request, "simulator/authorize.html", context, status=400)
+        scenario = "succeeded" if decision == "authorize" else "canceled"
+        try:
+            attempt = complete_simulated_attempt(attempt=attempt, scenario=scenario, api_key=None)
+        except ValidationError as error:
+            context["error"] = " ".join(str(value) for value in error.detail.values())
+            return render(request, "simulator/authorize.html", context, status=400)
         intent.refresh_from_db()
         if return_url := safe_return_url(intent.return_url, intent):
             return redirect(return_url)
-        context.update({"intent": intent, "paid": True, "attempt": attempt})
-    return render(request, "simulator/checkout.html", context)
+        context.update({"intent": intent, "attempt": attempt, "paid": attempt.status == PaymentAttempt.Status.SUCCEEDED})
+        return render(request, "simulator/checkout.html", context)
+    return render(request, "simulator/authorize.html", context)

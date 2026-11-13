@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from unittest.mock import patch
 
 from merchants.models import Merchant
 
@@ -21,3 +22,21 @@ class TestConsoleTests(TestCase):
         self.assertContains(home, "Build the flow")
         self.assertEqual(docs.status_code, 200)
         self.assertContains(docs, "PesoWay developer docs")
+
+    @patch("dashboard.views.process_due_deliveries")
+    def test_owner_can_trigger_only_their_due_webhook_delivery(self, process_due):
+        owner = get_user_model().objects.create_user(username="dashboard-owner", password="a-secure-password")
+        merchant = Merchant.objects.create(name="Dashboard Merchant", owner=owner)
+        process_due.return_value = {"processed": 1, "succeeded": 1, "failed": 0}
+        self.client.force_login(owner)
+
+        response = self.client.post("/dashboard/webhooks/deliver/")
+        self.assertRedirects(response, "/dashboard/")
+        process_due.assert_called_once_with(limit=25, merchant=merchant)
+
+    def test_webhook_delivery_button_requires_login_and_post(self):
+        self.assertEqual(self.client.get("/dashboard/webhooks/deliver/").status_code, 302)
+        owner = get_user_model().objects.create_user(username="dashboard-method", password="a-secure-password")
+        Merchant.objects.create(name="Dashboard Method Merchant", owner=owner)
+        self.client.force_login(owner)
+        self.assertEqual(self.client.get("/dashboard/webhooks/deliver/").status_code, 405)

@@ -29,6 +29,15 @@ credentials receive the same generic `401` response. The route accepts no
 secrets in query parameters and returns processed/succeeded/failed counts only
 after successful authentication.
 
+## Merchant test button
+
+An authenticated merchant owner can also use **Dashboard → Send due test
+webhooks**. This submits a CSRF-protected POST to
+`/dashboard/webhooks/deliver/`; it does not reveal or use `CRON_SECRET` in the
+browser. The action is rate-limited, audit-logged, and processes at most 25
+due deliveries belonging to that merchant. It is intended for simulation and
+integration testing when an immediate delivery is needed on a Hobby deployment.
+
 ## Vercel Cron configuration
 
 `vercel.json` registers the route at `0 0 * * *` (UTC). Vercel Cron calls the
